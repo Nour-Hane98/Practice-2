@@ -1,0 +1,95 @@
+#!/usr/bin/env python
+import rospy
+from sensor_msgs.msg import LaserScan
+from geometry_msgs.msg import Twist
+from time import sleep
+import math
+
+# Constants (adjust as per the robot and environment)
+M = 5  # Distance in meters to look for parking spaces
+N = 10  # Time to wait after parking (in seconds)
+PARKING_THRESHOLD = 1.0  # Distance threshold to detect a parking space (in meters)
+
+class ParkingRobot:
+    def __init__(self):
+        rospy.init_node('parking_robot')
+        
+        # LIDAR and movement publisher
+        self.lidar_subscriber = rospy.Subscriber('/scan', LaserScan, self.lidar_callback)
+        self.cmd_vel_publisher = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
+        
+        self.scan_data = None
+        
+    def lidar_callback(self, data):
+        """Callback function to handle LIDAR data"""
+        self.scan_data = data.ranges
+        
+    def find_parking_space(self):
+        """Search for a valid parking spot"""
+        # Scan the right side of the robot (assuming LIDAR is oriented forward)
+        right_scan = self.scan_data[0:180]  # Get values from 0 to 180 degrees
+        
+        # Look for an open space on the right side
+        for i in range(len(right_scan)):
+            if right_scan[i] < PARKING_THRESHOLD:  # Found a potential parking space
+                rospy.loginfo("Potential parking space detected!")
+                return True
+        rospy.loginfo("No parking space found on the right side.")
+        return False
+    
+    def park(self):
+        """Perform parking maneuver"""
+        # Parking logic (the exact logic depends on your robot and environment)
+        rospy.loginfo("Parking in place...")
+        
+        move_cmd = Twist()
+        move_cmd.linear.x = 0.0
+        move_cmd.angular.z = 0.0
+        
+        # Stop the robot to simulate parking (you could add additional maneuvers for more complex parking)
+        self.cmd_vel_publisher.publish(move_cmd)
+        rospy.loginfo("Robot is parked.")
+        
+        # Wait for N seconds
+        sleep(N)
+    
+    def exit_parking(self):
+        """Exit the parking space"""
+        rospy.loginfo("Exiting parking space...")
+        
+        # Reverse the robot (this would depend on your robot's control system)
+        move_cmd = Twist()
+        move_cmd.linear.x = -0.2  # Move backwards
+        move_cmd.angular.z = 0.0  # No rotation
+        
+        # Move backwards for a brief period
+        self.cmd_vel_publisher.publish(move_cmd)
+        sleep(2)  # Move for 2 seconds
+        
+        # Stop the robot
+        move_cmd.linear.x = 0.0
+        self.cmd_vel_publisher.publish(move_cmd)
+        rospy.loginfo("Exited the parking space.")
+
+    def run(self):
+        """Main function to run the parking task"""
+        rospy.loginfo("Starting parking task...")
+        
+        # Step 1: Find parking space
+        if self.find_parking_space():
+            # Step 2: Park the robot
+            self.park()
+            
+            # Step 3: Exit the parking space
+            self.exit_parking()
+        else:
+            rospy.loginfo("No valid parking space found. Try again.")
+        
+        rospy.loginfo("Parking task completed.")
+        
+if __name__ == '__main__':
+    try:
+        robot = ParkingRobot()
+        robot.run()
+    except rospy.ROSInterruptException:
+        pass
